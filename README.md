@@ -1,1 +1,3 @@
-# Advent of Code 2020 using Nim (and Rust)
+# Advent of Code 2020
+
+Using Nim
