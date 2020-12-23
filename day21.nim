@@ -57,48 +57,7 @@ proc PartOne =
     echo foods.mapIt(it.ing.toHashSet.intersection(safeIngs).len).sum
 
 proc PartTwo = 
-    discard "done by my eyes"
-
-# ----------------------------------------------------------------------------------
-
-
-# proc  = 
-
-#     proc searchSafeIng(f: var Table[string, bool]): bool =
-
-#         echo f
-
-#         # # check allergens
-#         # for ing in f.keys:
-#         #     if 
-
-
-#         # pick first ing
-#         for ing in ingredients:
-#             if f.hasKey(ing): continue
-
-#             # assert ing != ""
-            
-#             f[ing] = false
-
-#             if searchSafeIng(f): return true
-
-#             f.del(ing)
-
-#         return true
-
-
-#     var ff = initTable[string, bool]()
-
-#     echo searchSafeIng(ff)
-
-
-# ----------------------------------------------------------------------------------
-
-
-
-PartTwo()
-
+    discard "done by my eyes based on Part One"
 
 
 echo "*** END"
