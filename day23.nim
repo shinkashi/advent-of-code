@@ -4,177 +4,79 @@ echo "*** START"
 {.warning[UnusedImport]: off.}
 import strutils, strformat, sequtils, strscans, sugar, math, tables, algorithm, parseutils, re, sets
 
+const Total = 1_000_000
+const Moves = 10_000_000
+
 type Cups = object
-    pre: seq[int]
-    lo: int
-    hi: int
-    post: seq[int]
-    total: int
+    nx: array[1..TOTAL, int] # next number
+    cur: int
 
-proc newCups(pre: seq[int], total: int): Cups =
-    result.pre = pre
-    result.lo = 10
-    result.hi = total
-    result.total = total
+# var firstCups = @[3,8,9,1,2,5,4,6,7] # test
+var firstCups = @[2,1,5,6,9,4,7,8,3]  # real
 
-proc postLoc(c: var Cups): int =
-    if c.lo <= c.hi:
-        c.pre.len + (c.hi-c.lo+1)
-    else:
-        c.pre.len
+# prepare cups
 
-proc shift(c: var Cups): int =
-    if c.pre.len > 0:
-        result = c.pre[0]
-        c.pre.delete(0)
-        return
+proc prepareCups(firstCups: openArray[int]): Cups =
+    var prev = firstCups[0]
+    for x in firstCups[1..^1]:
+        result.nx[prev] = x
+        prev = x
+    result.nx[prev] = firstCups[0]
 
-    if c.lo <= c.hi:
-        result = c.lo
-        inc c.lo
-        if c.lo <= c.hi:
-            return
+    if TOTAL > firstCups.len:
+        result.nx[prev] = firstCups.len+1
+        for i in firstCups.len+1..TOTAL:
+            result.nx[i] = i + 1
+        result.nx[TOTAL] = firstCups[0]
 
-        echo "brick fully consumed"
-        c.lo = 0
-        c.hi = -1
+    result.cur = firstCups[0]
 
-    result = c.post[0]
-    c.post.delete(0)
-    return
+proc print(c: var Cups): string =
+    var n = c.cur
+    while true:
+        result.add &"{n} "
+        n = c.nx[n]
+        if n == c.cur: break
 
-proc find(c: var Cups, v: int): int =
-    if v in c.lo..c.hi:
-        result = c.pre.len + (v - c.lo)
-    else:
-        result = c.pre.find(v)
-        if result == -1:
-            result = c.post.find(v)
-            if result != -1:
-                result += c.postLoc()
+var cups = prepareCups(firstCups)
 
-proc insert(c: var Cups, v: int, pos: int) =
-    # echo &"  inserting {v} at pos {pos}"
-    if c.postLoc() <= pos:
-        c.post.insert(v, pos - c.postLoc())
-    elif pos <= c.pre.len:
-        c.pre.insert(v, pos)
-    else:
-        echo "really? inserting in the middle of brick?"
-        quit()
+proc move(c: var Cups) =
+    var n1 = c.nx[c.cur]
+    var n2 = c.nx[n1]
+    var n3 = c.nx[n2]
 
-proc add(c: var Cups, v: int) =
-    c.post.add(v)
+    # echo "pick up: ", [n1, n2, n3]
+    c.nx[c.cur] = c.nx[n3]
 
-var cups = newCups(@[3,8,9,1,2,5,4,6,7], 1_000_000) # test
-#var cups = @[2,1,5,6,9,4,7,8,3]  # real
+    var dest = c.cur - 1
+    if dest < 1:
+        dest = TOTAL
+    while dest in [n1, n2, n3]:
+        dec dest    
+        if dest < 1:
+            dest = TOTAL
 
+    # echo "destination: ", dest
 
-proc PartTwo =
-
-    proc move(cups: var Cups) =
-        var cur = cups.shift
-
-        var (n1, n2, n3) = (cups.shift, cups.shift, cups.shift)
-        # echo &"took {n1} {n2} {n3}"
-
-        var dest = cur - 1
-        var destPos: int
-
-        while true:
-            # echo "  finding ", dest
-            destPos = cups.find(dest)
-            if destPos != -1: break
-            if dest <= 1:
-                dest = cups.total
-            else:
-                dec dest 
-
-        # echo &"  found at pos {destPos}"
-
-        cups.insert(n3, destPos + 1)
-        cups.insert(n2, destPos + 1)
-        cups.insert(n1, destPos + 1)
-
-        cups.add(cur)
-
-    echo cups
-    for i in 1..10000:
-        move(cups)
-
-    echo cups
-
-const total = 1000
-
-type CupsArray = array[total, int]
-
-proc createCupsArray(c: var seq[int]): CupsArray =
-    for i, x in c:
-        result[i] = x
-
-proc PartOne =
-    var cups = @[3,8,9,1,2,5,4,6,7] # test
-    # var cups = @[2,1,5,6,9,4,7,8,3]  # real
-
-    cups.add((10..total).toSeq)
-    proc shift(a: var seq[int]): int =
-        result = a[0]
-        a.delete(0)
-
-    proc move(cups: var seq[int]) =
-        var cur = cups.shift
-
-        var (n1, n2, n3) = (cups.shift, cups.shift, cups.shift)
-
-        var dest = cur - 1
-        var destPos: int
-
-        while true:
-            # echo "  checking ", dest
-            destPos = cups.find(dest)
-            if destPos != -1: break
-            if dest <= 1:
-                dest = total
-            else:
-                dec dest 
-
-        cups.insert(@[n1, n2, n3], destPos + 1)
-
-        cups.add(cur)
-
-    var prevMsg: string
-
-    var rec: CountTable[CupsArray]
-
-    for i in 1..10000:
-        move(cups)
-        var 
-            pos = cups.find(1)
-            pos2 = (pos + 1) mod total
-            pos3 = (pos + 2) mod total
-
-        var msg = &"[ {cups[pos]}, {cups[pos2]}, {cups[pos3]} ]"
-
-        rec.inc(createCupsArray(cups))
-
-        if prevMsg != msg:
-            echo &"{i}: at {pos} > " & msg
-
-        prevMsg = msg
-
-    # var pos1 = cups.find(1)
-    # for i in 1..8:
-    #     stdout.write cups[(pos1 + i) mod cups.len]
-    # echo ""
-
-    # echo cups
+    # echo "before insert ", c
+    var destNext = c.nx[dest]
+    c.nx[dest] = n1
+    c.nx[n3] = destNext
+    # echo "after insert ", c
     
-    echo rec
+    c.cur = c.nx[c.cur]    
 
+for i in 1..Moves:
+    # echo &"move {i}:  {cups.print}"
+    move(cups)
 
+var 
+    pos2 = cups.nx[1]
+    pos3 = cups.nx[pos2]
 
+echo pos2
+echo pos3
+echo pos2 * pos3
 
-PartOne()
-# PartTwo()
 
 echo "*** END"
