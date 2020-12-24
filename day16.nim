@@ -1,11 +1,11 @@
-
 {.experimental: "codeReordering".}
 {.warning[UnusedImport]: off.}
 
-import strutils, strformat, sequtils, strscans, re, sugar, math, tables, algorithm, parseutils
+import strutils, strformat, sequtils, strscans, re, sugar, math, tables, algorithm, parseutils, sets
 
-
+# var input = inputTest2
 var input = inputReal
+
 var 
     sections = input.strip.split("\n\n")
     rangesSect = sections[0]
@@ -14,68 +14,110 @@ var
 
 echo '-'.repeat(40)
 
+type FieldValue = 0..65535  # {1..2}]
+type FieldRule = Table[string, set[FieldValue]] 
+
+proc loadFields(f: var FieldRule,  names: var HashSet[string]) =
+    for field in rangesSect.splitLines:
+        if field =~ re"^(.+): (.+)$":
+            var name, rangeStr: string
+            (name, rangeStr) = matches
+
+            names.incl(name)
+
+            var rg = rangeStr.findAll(re"\d+-\d+")
+                .mapIt(it.split("-")
+                .map(parseUInt))
+                .map(x => {x[0]..x[1]})
+                .foldl(a + b)
+
+            f[name] = rg
+
+proc PartTwo =
+    var errorValuesFromPartOne = @[5, 976, 16, 999, 975, 990, 6, 14, 982, 975, 982, 19, 976, 19, 987, 991, 16, 4, 986, 997, 984, 23, 23, 2, 998, 20, 993, 8, 985, 997, 997, 981, 988, 7, 2, 982, 994, 980, 0, 20, 24, 992, 0, 19, 986, 995, 981, 991, 990, 6, 996, 990]
+
+    var
+        rules: FieldRule
+        fields: HashSet[string]
+
+    loadFields(rules, fields)
+
+    # # remove invalid nearby tickets
+    # var nearbyTickets: seq[string]
+    # for i, ln in nearbyTicketsSect.splitLines[1..^1]:
+    #     if i notin errorValuesFromPartOne:
+    #         nearbyTickets.add(ln)
+
+    # tickets: [[ticket1's field1, field2], ...]
+    var tickets: seq[seq[uint]] = 
+        concat(
+            yourTicketSect.splitLines[1..^1], 
+            nearbyTicketsSect.splitLines[1..^1], 
+        ).mapIt(it.split(",").map(parseUint))
+
+    # create possiblities
+    # e.g. possible[fieldNum] == {"class", "row"} 
+    var possible = newSeq[HashSet[string]](fields.len)
+    possible.fill(fields)
+
+    # filtering
+    for t in tickets:
+        for fnum, v in t:
+            if v.int in errorValuesFromPartOne:
+                echo &"error ticket by value {v}, skipping"
+                continue
+
+            for fname, fvset in rules.pairs:
+                if v notin fvset:
+                    echo &"eliminating {fnum=} {v=} {fname=}"
+                    possible[fnum].excl(fname)
+
+
+    # trim possiblity by deciding candidates that have only one candidate
+
+    var prev: seq[HashSet[string]]
+    var removed: HashSet[string]
+    while possible != prev:
+        var singles = possible.filterIt(it.len == 1 and (it * removed).len == 0)
+
+        if singles.len == 0:
+            echo "no singles, hard choice"
+            echo possible
+            quit()
+
+        let single: HashSet[string] = singles[0]
+        removed.incl(single)
+        echo &"removing {single}"
+
+        prev = possible
+        for i, p in possible:
+            if possible[i] != single:
+                possible[i].excl(single)
+
+    dump possible
+
+    var yt = tickets[0]
+
+    var departures: seq[uint]
+    for i, p in possible:
+        if "departure" in p.toSeq[0]:
+            echo &"field {i}: {p}, your ticket {yt[i]}"
+            departures.add(yt[i])
+
+    echo departures.foldl(a * b)
+
 PartTwo()
 
-#[ proc PartOne =
+proc PartOne =
     var ranges = rangesSect
         .findAll(re"\d+-\d+")
         .mapIt(it.split("-").map(parseInt))
         .mapIt({it[0]..it[1]}) # [[from, to], ...]
 
-    echo ranges
-
     var nearbyTicketsNums =  nearbyTicketsSect.findAll(re"\d+").map(parseInt)
-    echo nearbyTicketsNums.filter(num => not ranges.anyIt(num in it)).sum
-
- ]#
-
-proc PartTwo =
-    var rangeTbl: Table[string, set[0..65535]]
-    var ranges: set[0..65535]
-
-    for itm in rangesSect.splitLines.mapIt(it.split(":")):
-        var key, rangeStr: string
-        (key, rangeStr) = (itm[0], itm[1])
-        var r = rangeStr
-            .findAll(re"\d+-\d+")
-            .mapIt(it.split("-").map(parseInt)).map(x => {x[0]..x[1]}).foldl(a + b)
-
-        rangeTbl[key] = r
-        ranges = ranges + r
-
-    # echo $rangeTbl
-
-    # delete invalid tickets
-    var nearbyTickets =  nearbyTicketsSect.splitLines.mapIt(it.findAll(re"\d+").map(parseInt))
-    nearbyTickets.keepIf(tickets => tickets.len > 0 and tickets.all(num => num in ranges))
-    # echo nearbyTickets
-
-    var yourTicket =  yourTicketSect.findAll(re"\d+").map(parseInt)
-    echo yourTicket
-
-    # coltable
-
-    var tickets: seq[seq[int16]]
-    tickets = nearbyTickets
-    tickets.add(yourTicket)
-
-    # transpose
-    var cols: seq[set[int16]]
-    for col in 0..<tickets[0].len:
-        var s: set[int16]
-        cols[col] = s
-        for t in tickets:
-            cols[col] += t[col]
-
-
-    # find "departure location" field
-    var
-        fieldName = "departure location"
-        fieldRange = rangeTbl[fieldName]
-
-    for i in 0..<nearbyTickets[0].len:
-        var res = (cols[i] <= fieldRange)
-        echo &"checking col {i} result {res}"
+    var invalidTickes = nearbyTicketsNums.filter(num => not ranges.anyIt(num in it))
+    echo invalidTickes
+    echo invalidTickes.sum
 
 
 const inputTest = """
@@ -91,6 +133,20 @@ nearby tickets:
 40,4,50
 55,2,20
 38,6,12
+"""
+
+const inputTest2 = """
+class: 0-1 or 4-19
+row: 0-5 or 8-19
+seat: 0-13 or 16-19
+
+your ticket:
+11,12,13
+
+nearby tickets:
+3,9,18
+15,1,5
+5,14,9
 """
 
 const inputReal = """
@@ -362,3 +418,4 @@ nearby tickets:
 95,236,566,117,112,246,522,643,738,665,528,86,340,749,802,528,835,98,146,463
 283,908,141,177,780,251,114,282,101,90,948,99,747,446,652,290,355,282,905,740
 """
+
